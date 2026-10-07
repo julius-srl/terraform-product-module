@@ -39,6 +39,10 @@ resource "github_repository" "this" {
   visibility  = var.visibility
   archived    = var.archived
   auto_init   = true
+
+  # v1.1.0
+  delete_branch_on_merge = true
+  topics                 = ["data-product"]
 }
 
 resource "github_repository_environment" "this" {
