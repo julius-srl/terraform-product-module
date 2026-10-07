@@ -1,0 +1,10 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  hello:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "workflow shipped by the factory, running in ${{ github.repository }}"
