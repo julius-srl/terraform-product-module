@@ -18,11 +18,15 @@ variable "archived" {
   default = false
 }
 
-# one GitHub Environment per name, e.g. ["dev", "prod"]
+# the GitHub Environment this state owns, e.g. "dev" or "prod"
 # ponytail: on a Free org only public repos can have environments
-variable "environments" {
-  type    = list(string)
-  default = []
+variable "environment" { type = string }
+
+# true in the first environment (dev): it creates the repo and the template.
+# false elsewhere: the repo is read with a data source and must already exist.
+variable "create_repo" {
+  type    = bool
+  default = true
 }
 
 locals {
@@ -34,29 +38,37 @@ locals {
 }
 
 resource "github_repository" "this" {
+  count = var.create_repo ? 1 : 0
+
   name        = var.name
   description = var.description
   visibility  = var.visibility
   archived    = var.archived
   auto_init   = true
 
-  # v1.1.0
   delete_branch_on_merge = true
   topics                 = ["data-product"]
 }
 
-resource "github_repository_environment" "this" {
-  for_each = toset(var.environments)
+data "github_repository" "this" {
+  count = var.create_repo ? 0 : 1
+  name  = var.name
+}
 
-  repository  = github_repository.this.name
-  environment = each.key
+locals {
+  repo = var.create_repo ? github_repository.this[0] : data.github_repository.this[0]
+}
+
+resource "github_repository_environment" "this" {
+  repository  = local.repo.name
+  environment = var.environment
 }
 
 # ponytail: one-off push of the template, ignore_changes keeps devs' edits. Real factory may use a template repo + pipeline step.
 resource "github_repository_file" "template" {
-  for_each = local.template
+  for_each = var.create_repo ? local.template : {}
 
-  repository          = github_repository.this.name
+  repository          = local.repo.name
   branch              = "main"
   file                = each.key
   content             = file("${path.module}/template/${each.value}")
@@ -68,6 +80,6 @@ resource "github_repository_file" "template" {
   }
 }
 
-output "repo_url" { value = github_repository.this.html_url }
-output "repo_id" { value = github_repository.this.repo_id }
-output "environments" { value = [for e in github_repository_environment.this : e.environment] }
+output "repo_url" { value = local.repo.html_url }
+output "repo_id" { value = local.repo.repo_id }
+output "environment" { value = github_repository_environment.this.environment }
